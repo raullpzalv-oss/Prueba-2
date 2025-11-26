@@ -5,6 +5,7 @@ from datetime import datetime, date
 import json
 import uuid
 import random
+import io
 
 # Configuración de la página
 st.set_page_config(
@@ -53,6 +54,18 @@ st.markdown("""
         border-left: 3px solid #28a745;
         padding-left: 10px;
         background-color: #f8fff9;
+    }
+    .station-line {
+        font-size: 0.8em;
+        color: #666;
+        margin-left: 5px;
+    }
+    .tren-item {
+        background-color: #f8f9fa;
+        padding: 8px;
+        margin: 5px 0;
+        border-radius: 5px;
+        border-left: 3px solid #0055a4;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -191,7 +204,7 @@ class SistemaIA:
 class SistemaIncidencias:
     def __init__(self):
         self.incidencias = []
-        self.estaciones = self.cargar_estaciones()
+        self.estaciones_df, self.lineas = self.cargar_estaciones()
         self.sistema_ia = SistemaIA()
         self.tipos_incidencia = [
             "Avería Infraestructura",
@@ -208,26 +221,64 @@ class SistemaIncidencias:
             "Interrupción parcial del Servicio en la línea",
             "Interrupción total del Servicio en la línea"
         ]
-        self.lineas = self.obtener_lineas()
         
     def cargar_estaciones(self):
-        """Cargar estaciones desde CSV"""
+        """Cargar estaciones desde CSV con formato específico"""
         try:
-            estaciones_df = pd.read_csv('estaciones.csv')
-            return estaciones_df
+            # Leer el archivo CSV con separador punto y coma
+            df = pd.read_csv('Estaciones Catalunya.csv', sep=';', encoding='utf-8')
+            
+            # Procesar el formato especial del archivo
+            # La primera fila contiene las líneas
+            # Las siguientes filas contienen las estaciones por línea
+            lineas = df.columns.tolist()
+            
+            # Crear un DataFrame limpio de estaciones
+            estaciones_data = []
+            
+            for i, linea in enumerate(lineas):
+                # Obtener todas las estaciones de esta línea (excluyendo NaN)
+                estaciones_linea = df[linea].dropna().tolist()
+                
+                for estacion in estaciones_linea:
+                    if estacion and estacion.strip():  # Excluir valores vacíos
+                        estaciones_data.append({
+                            'estacion': estacion.strip(),
+                            'linea': linea
+                        })
+            
+            estaciones_df = pd.DataFrame(estaciones_data)
+            
+            # Ordenar por nombre de estación
+            estaciones_df = estaciones_df.sort_values('estacion')
+            
+            return estaciones_df, lineas
+            
         except FileNotFoundError:
-            st.warning("No se encontró el archivo 'estaciones.csv'. Usando datos de ejemplo.")
-            return pd.DataFrame({
-                'estacion': ['Barcelona-Sants', 'Barcelona-Passeig de Gràcia', 'Barcelona-Estació de França', 
-                           'Granollers Centre', 'Sabadell Centre', 'Terrassa', 'Mataró', 'Vilanova i la Geltrú'],
-                'linea': ['R1', 'R2', 'R3', 'R3', 'R4', 'R5', 'R1', 'R2']
-            })
+            st.error("No se encontró el archivo 'Estaciones Catalunya.csv'")
+            # Datos de ejemplo como fallback
+            estaciones_data = [
+                {'estacion': 'Barcelona-Sants', 'linea': 'R1'},
+                {'estacion': 'Barcelona-Passeig de Gràcia', 'linea': 'R2'},
+                {'estacion': 'L’Hospitalet de Llobregat', 'linea': 'R1'},
+                {'estacion': 'Mataró', 'linea': 'R1'},
+                {'estacion': 'Granollers Centre', 'linea': 'R3'},
+            ]
+            estaciones_df = pd.DataFrame(estaciones_data)
+            lineas = ['R1', 'R2', 'R3', 'R4']
+            return estaciones_df, lineas
     
-    def obtener_lineas(self):
-        """Obtener lista única de líneas"""
-        if not self.estaciones.empty:
-            return sorted(self.estaciones['linea'].unique())
-        return ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8']
+    def obtener_estaciones_por_linea(self, linea):
+        """Obtener estaciones para una línea específica"""
+        if linea and not self.estaciones_df.empty:
+            return self.estaciones_df[self.estaciones_df['linea'] == linea]['estacion'].tolist()
+        return []
+    
+    def obtener_todas_estaciones(self):
+        """Obtener todas las estaciones únicas"""
+        if not self.estaciones_df.empty:
+            return sorted(self.estaciones_df['estacion'].unique())
+        return []
     
     def generar_id_incidencia(self):
         """Generar ID alfanumérico de 6 cifras"""
@@ -343,7 +394,7 @@ def mostrar_detalles_incidencia(sistema, id_incidencia):
         elif incidencia['tipo'] == 'Avería Tren':
             st.write(f"**Nº Tren:** {incidencia.get('numero_tren', '')}")
 
-def mostrar_seccion_comunicaciones(sistema, incidencia_data):
+def mostrar_seccion_comunicaciones():
     """Mostrar las secciones de comunicaciones con IA funcional"""
     
     # Sección 3: Copernico Incidencia
@@ -354,9 +405,10 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
         num_ut = st.text_input("Nº UT afectada", key="num_ut")
     
     with col_btn_copernico:
-        if st.button("🤖 Generar IA Copernico", key="btn_copernico", use_container_width=True):
-            contenido_copernico = sistema.sistema_ia.generar_copernico(incidencia_data)
-            st.session_state.copernico_generado = contenido_copernico
+        copernico_generado = st.form_submit_button("🤖 Generar IA Copernico", use_container_width=True)
+        if copernico_generado:
+            # Esta lógica se manejará después del submit
+            pass
     
     # Mostrar campos de Copernico
     if 'copernico_generado' in st.session_state:
@@ -381,9 +433,10 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
     # Sección 4: SIA Barcelona
     st.markdown('<div class="section-header">Sección 4. SIA Barcelona</div>', unsafe_allow_html=True)
     
-    if st.button("🤖 Generar IA SIA Barcelona", key="btn_sia", use_container_width=True):
-        contenido_sia = sistema.sistema_ia.generar_sia_barcelona(incidencia_data)
-        st.session_state.sia_generado = contenido_sia
+    sia_generado = st.form_submit_button("🤖 Generar IA SIA Barcelona", use_container_width=True)
+    if sia_generado:
+        # Esta lógica se manejará después del submit
+        pass
     
     if 'sia_generado' in st.session_state:
         st.markdown('<div class="ia-generated">', unsafe_allow_html=True)
@@ -414,9 +467,10 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
     # Sección 5: Plataforma embarcada
     st.markdown('<div class="section-header">Sección 5. Plataforma Embarcada</div>', unsafe_allow_html=True)
     
-    if st.button("🤖 Generar IA Plataforma", key="btn_plataforma", use_container_width=True):
-        contenido_plataforma = sistema.sistema_ia.generar_plataforma_embarcada(incidencia_data)
-        st.session_state.plataforma_generado = contenido_plataforma
+    plataforma_generado = st.form_submit_button("🤖 Generar IA Plataforma", use_container_width=True)
+    if plataforma_generado:
+        # Esta lógica se manejará después del submit
+        pass
     
     if 'plataforma_generado' in st.session_state:
         st.markdown('<div class="ia-generated">', unsafe_allow_html=True)
@@ -449,9 +503,10 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
     # Sección 6: Redes Sociales
     st.markdown('<div class="section-header">Sección 6. Redes Sociales</div>', unsafe_allow_html=True)
     
-    if st.button("🤖 Generar IA Redes Sociales", key="btn_redes", use_container_width=True):
-        contenido_redes = sistema.sistema_ia.generar_redes_sociales(incidencia_data)
-        st.session_state.redes_generado = contenido_redes
+    redes_generado = st.form_submit_button("🤖 Generar IA Redes Sociales", use_container_width=True)
+    if redes_generado:
+        # Esta lógica se manejará después del submit
+        pass
     
     if 'redes_generado' in st.session_state:
         st.markdown('<div class="ia-generated">', unsafe_allow_html=True)
@@ -470,36 +525,17 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
             st.subheader("Inglés")
             st.text_area("Mensaje ENG", value=st.session_state.redes_generado['eng']['mensaje'], key="mensaje_eng", height=100)
         
-        # Botones de envío
-        st.subheader("Envío a Redes Sociales")
-        col_envio1, col_envio2, col_envio3, col_envio4, col_envio5 = st.columns(5)
-        
-        with col_envio1:
-            if st.button("📤 Enviar a Todos", use_container_width=True):
-                st.success("Mensajes enviados a todas las redes sociales")
-        
-        with col_envio2:
-            if st.button("🐦 Twitter", use_container_width=True):
-                st.success("Mensaje enviado a Twitter")
-        
-        with col_envio3:
-            if st.button("💬 WhatsApp", use_container_width=True):
-                st.success("Mensaje enviado a WhatsApp")
-        
-        with col_envio4:
-            if st.button("📱 Telegram", use_container_width=True):
-                st.success("Mensaje enviado a Telegram")
-        
-        with col_envio5:
-            if st.button("🔄 Actualización", use_container_width=True):
-                st.success("Mensajes de actualización enviados")
-        
         st.markdown('</div>', unsafe_allow_html=True)
 
 def crear_incidencia(sistema):
     """Formulario para crear nueva incidencia"""
     st.markdown('<div class="main-header">📝 Nueva Incidencia</div>', unsafe_allow_html=True)
     
+    # Inicializar session_state para trenes afectados si no existe
+    if 'trenes_afectados' not in st.session_state:
+        st.session_state.trenes_afectados = []
+    
+    # Formulario principal
     with st.form("nueva_incidencia_form"):
         st.markdown('<div class="section-header">Sección 1. Incidencia</div>', unsafe_allow_html=True)
         
@@ -516,9 +552,18 @@ def crear_incidencia(sistema):
         with col3:
             linea = st.selectbox("Línea *", sistema.lineas)
         
+        # Mostrar información de la línea seleccionada
+        if linea:
+            estaciones_linea = sistema.obtener_estaciones_por_linea(linea)
+            if estaciones_linea:
+                with st.expander(f"Estaciones de la línea {linea} ({len(estaciones_linea)} estaciones)"):
+                    for estacion in estaciones_linea:
+                        st.write(f"• {estacion}")
+        
         # Campos específicos según tipo de incidencia
         if tipo_incidencia == "Avería Infraestructura":
-            dependencia = st.selectbox("Dependencia *", sistema.estaciones['estacion'].tolist())
+            todas_estaciones = sistema.obtener_todas_estaciones()
+            dependencia = st.selectbox("Dependencia *", todas_estaciones)
         elif tipo_incidencia == "Avería Tren":
             numero_tren = st.text_input("Nº Tren (5 cifras) *", max_chars=5)
         elif tipo_incidencia in ["Orden público/Fuerza mayor", "Operaciones"]:
@@ -526,15 +571,23 @@ def crear_incidencia(sistema):
             with col_opt1:
                 numero_tren_opcional = st.text_input("Nº Tren (opcional)", max_chars=5)
             with col_opt2:
-                dependencia_opcional = st.selectbox("Dependencia (opcional)", [""] + sistema.estaciones['estacion'].tolist())
+                todas_estaciones = sistema.obtener_todas_estaciones()
+                dependencia_opcional = st.selectbox("Dependencia (opcional)", [""] + todas_estaciones)
         
         # Afectación al territorio
         st.subheader("Afectación al territorio")
+        
+        # Si hay una línea seleccionada, mostrar solo estaciones de esa línea
+        if linea:
+            estaciones_disponibles = sistema.obtener_estaciones_por_linea(linea)
+        else:
+            estaciones_disponibles = sistema.obtener_todas_estaciones()
+        
         col_est1, col_est2 = st.columns(2)
         with col_est1:
-            estacion_a = st.selectbox("Estación A", sistema.estaciones['estacion'].tolist())
+            estacion_a = st.selectbox("Estación A", estaciones_disponibles)
         with col_est2:
-            estacion_b = st.selectbox("Estación B", sistema.estaciones['estacion'].tolist())
+            estacion_b = st.selectbox("Estación B", estaciones_disponibles)
         
         descripcion_larga = st.text_area("Descripción larga *", height=100, placeholder="Describa detalladamente la incidencia...")
         prevision_resolucion = st.text_area("Previsión de resolución *", height=80, placeholder="Indique la previsión de cuándo se resolverá...")
@@ -549,34 +602,20 @@ def crear_incidencia(sistema):
         with col_sitra:
             sitra = st.text_input("SITRA")
         
-        # Trenes afectados
+        # Trenes afectados - fuera del form para permitir interacción
         st.subheader("Trenes afectados")
-        if 'trenes_afectados' not in st.session_state:
-            st.session_state.trenes_afectados = []
         
-        col_tren1, col_tren2, col_tren3 = st.columns([2, 2, 1])
-        with col_tren1:
-            nuevo_tren = st.text_input("Nº Tren", key="nuevo_tren")
-        with col_tren2:
-            nuevo_retraso = st.number_input("Retraso (minutos)", min_value=0, key="nuevo_retraso")
-        with col_tren3:
-            if st.button("➕ Añadir", key="btn_anadir_tren"):
-                if nuevo_tren:
-                    st.session_state.trenes_afectados.append({
-                        'tren': nuevo_tren,
-                        'retraso': nuevo_retraso
-                    })
-                    st.rerun()
-        
-        # Mostrar trenes añadidos
+        # Mostrar trenes actuales
         for i, tren in enumerate(st.session_state.trenes_afectados):
             col_show1, col_show2, col_show3 = st.columns([2, 2, 1])
             with col_show1:
-                st.text(f"Tren: {tren['tren']}")
+                st.markdown(f'<div class="tren-item">Tren: {tren["tren"]}</div>', unsafe_allow_html=True)
             with col_show2:
-                st.text(f"Retraso: {tren['retraso']} min")
+                st.markdown(f'<div class="tren-item">Retraso: {tren["retraso"]} min</div>', unsafe_allow_html=True)
             with col_show3:
-                if st.button("🗑️", key=f"eliminar_{i}"):
+                # Usar form_submit_button para eliminar
+                eliminar = st.form_submit_button("🗑️", key=f"eliminar_{i}")
+                if eliminar:
                     st.session_state.trenes_afectados.pop(i)
                     st.rerun()
         
@@ -591,13 +630,14 @@ def crear_incidencia(sistema):
         }
         
         # Mostrar secciones de comunicaciones con IA
-        mostrar_seccion_comunicaciones(sistema, incidencia_data)
+        mostrar_seccion_comunicaciones()
         
-        # Botones de envío
+        # Botón de submit principal
         col_submit1, col_submit2, col_submit3 = st.columns(3)
         with col_submit2:
             submitted = st.form_submit_button("💾 Guardar Incidencia", use_container_width=True)
         
+        # Procesar después del submit
         if submitted:
             if not descripcion_larga or not prevision_resolucion:
                 st.error("Por favor, complete todos los campos obligatorios (*)")
@@ -647,6 +687,26 @@ def crear_incidencia(sistema):
                 
                 st.session_state.crear_incidencia = False
                 st.rerun()
+    
+    # Formulario separado para añadir trenes (fuera del form principal)
+    st.markdown("---")
+    st.subheader("Añadir Tren Afectado")
+    
+    with st.form("añadir_tren_form"):
+        col_tren1, col_tren2, col_tren3 = st.columns([2, 2, 1])
+        with col_tren1:
+            nuevo_tren = st.text_input("Nº Tren", key="nuevo_tren")
+        with col_tren2:
+            nuevo_retraso = st.number_input("Retraso (minutos)", min_value=0, key="nuevo_retraso")
+        with col_tren3:
+            añadir_tren = st.form_submit_button("➕ Añadir", use_container_width=True)
+        
+        if añadir_tren and nuevo_tren:
+            st.session_state.trenes_afectados.append({
+                'tren': nuevo_tren,
+                'retraso': nuevo_retraso
+            })
+            st.rerun()
 
 def main():
     """Función principal de la aplicación"""
@@ -656,6 +716,17 @@ def main():
         st.session_state.sistema = SistemaIncidencias()
     
     sistema = st.session_state.sistema
+    
+    # Mostrar información del dataset cargado
+    with st.sidebar:
+        st.header("📊 Datos del Sistema")
+        st.write(f"**Líneas cargadas:** {len(sistema.lineas)}")
+        st.write(f"**Estaciones cargadas:** {len(sistema.estaciones_df)}")
+        st.write(f"**Incidencias activas:** {len(sistema.obtener_incidencias_activas())}")
+        
+        if st.button("🔄 Recargar Estaciones"):
+            sistema.estaciones_df, sistema.lineas = sistema.cargar_estaciones()
+            st.rerun()
     
     # Navegación
     if st.session_state.get('crear_incidencia', False):
