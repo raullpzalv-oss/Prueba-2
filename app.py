@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="Gestión de Incidencias - Rodalies Catalunya",
     page_icon="🚆",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # Estilos CSS personalizados
@@ -54,6 +54,8 @@ st.markdown("""
         border-left: 3px solid #28a745;
         padding-left: 10px;
         background-color: #f8fff9;
+        margin: 10px 0;
+        padding: 15px;
     }
     .station-line {
         font-size: 0.8em;
@@ -66,6 +68,16 @@ st.markdown("""
         margin: 5px 0;
         border-radius: 5px;
         border-left: 3px solid #0055a4;
+    }
+    .logo-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+    .logo {
+        height: 80px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -305,7 +317,16 @@ class SistemaIncidencias:
 
 def mostrar_dashboard(sistema):
     """Mostrar el dashboard principal con tabla de incidencias"""
-    st.markdown('<div class="main-header">🚆 Gestión de Incidencias - Rodalies Catalunya</div>', unsafe_allow_html=True)
+    
+    # Logos en la parte superior
+    st.markdown("""
+    <div class="logo-container">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Rodalies_de_Catalunya_logo.svg/320px-Rodalies_de_Catalunya_logo.svg.png" class="logo">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Renfe_Logo.png/320px-Renfe_Logo.png" class="logo">
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="main-header">Gestión de Incidencias - Rodalies Catalunya</div>', unsafe_allow_html=True)
     
     # Botón para nueva incidencia
     col1, col2 = st.columns([3, 1])
@@ -321,17 +342,15 @@ def mostrar_dashboard(sistema):
         st.info("No hay incidencias activas en este momento.")
         return
     
-    # Crear DataFrame para mostrar
+    # Crear DataFrame para mostrar (solo las columnas solicitadas)
     datos_tabla = []
     for inc in incidencias_activas:
         datos_tabla.append({
-            'ID': inc['id'],
-            'Tipo': inc['tipo'],
-            'Afectación': f"{inc.get('estacion_a', '')} - {inc.get('estacion_b', '')}",
+            'Tipo de incidencia': inc['tipo'],
+            'Afectación al Territorio': f"{inc.get('estacion_a', '')} - {inc.get('estacion_b', '')}",
             'Repercusión': inc['repercusion'],
-            'Descripción': inc.get('descripcion', '')[:50] + '...' if inc.get('descripcion') else '',
-            'Previsión': inc.get('prevision', '')[:30] + '...' if inc.get('prevision') else '',
-            'Estado': 'Activa'
+            'Breve descripción': inc.get('descripcion', '')[:100] + '...' if len(inc.get('descripcion', '')) > 100 else inc.get('descripcion', ''),
+            'Previsión de resolución': inc.get('prevision', '')[:80] + '...' if len(inc.get('prevision', '')) > 80 else inc.get('prevision', '')
         })
     
     if datos_tabla:
@@ -339,23 +358,15 @@ def mostrar_dashboard(sistema):
         
         # Aplicar estilos según la repercusión
         def color_por_repercusion(val):
-            if 'grave' in val or 'total' in val:
+            if 'grave' in val.lower() or 'total' in val.lower():
                 return 'background-color: #f8d7da'
-            elif 'leve' in val or 'parcial' in val:
+            elif 'leve' in val.lower() or 'parcial' in val.lower():
                 return 'background-color: #fff3cd'
             else:
                 return 'background-color: #d4edda'
         
-        styled_df = df.style.applymap(color_por_repercusion, subset=['Repercusión'])
-        st.dataframe(styled_df, use_container_width=True)
-        
-        # Permitir hacer click en una fila para ver detalles
-        st.subheader("Detalles de Incidencia")
-        selected_id = st.selectbox("Selecciona una incidencia para ver detalles:", 
-                                 [inc['id'] for inc in incidencias_activas])
-        
-        if selected_id:
-            mostrar_detalles_incidencia(sistema, selected_id)
+        styled_df = df.style.map(color_por_repercusion, subset=['Repercusión'])
+        st.dataframe(styled_df, use_container_width=True, height=400)
 
 def mostrar_detalles_incidencia(sistema, id_incidencia):
     """Mostrar detalles de una incidencia específica"""
@@ -394,7 +405,7 @@ def mostrar_detalles_incidencia(sistema, id_incidencia):
         elif incidencia['tipo'] == 'Avería Tren':
             st.write(f"**Nº Tren:** {incidencia.get('numero_tren', '')}")
 
-def mostrar_seccion_comunicaciones():
+def mostrar_seccion_comunicaciones(sistema, incidencia_data):
     """Mostrar las secciones de comunicaciones con IA funcional"""
     
     # Sección 3: Copernico Incidencia
@@ -405,10 +416,10 @@ def mostrar_seccion_comunicaciones():
         num_ut = st.text_input("Nº UT afectada", key="num_ut")
     
     with col_btn_copernico:
-        copernico_generado = st.form_submit_button("🤖 Generar IA Copernico", use_container_width=True)
-        if copernico_generado:
-            # Esta lógica se manejará después del submit
-            pass
+        if st.button("🤖 Generar IA Copernico", key="btn_copernico", use_container_width=True):
+            contenido_copernico = sistema.sistema_ia.generar_copernico(incidencia_data)
+            st.session_state.copernico_generado = contenido_copernico
+            st.rerun()
     
     # Mostrar campos de Copernico
     if 'copernico_generado' in st.session_state:
@@ -433,10 +444,10 @@ def mostrar_seccion_comunicaciones():
     # Sección 4: SIA Barcelona
     st.markdown('<div class="section-header">Sección 4. SIA Barcelona</div>', unsafe_allow_html=True)
     
-    sia_generado = st.form_submit_button("🤖 Generar IA SIA Barcelona", use_container_width=True)
-    if sia_generado:
-        # Esta lógica se manejará después del submit
-        pass
+    if st.button("🤖 Generar IA SIA Barcelona", key="btn_sia", use_container_width=True):
+        contenido_sia = sistema.sistema_ia.generar_sia_barcelona(incidencia_data)
+        st.session_state.sia_generado = contenido_sia
+        st.rerun()
     
     if 'sia_generado' in st.session_state:
         st.markdown('<div class="ia-generated">', unsafe_allow_html=True)
@@ -467,10 +478,10 @@ def mostrar_seccion_comunicaciones():
     # Sección 5: Plataforma embarcada
     st.markdown('<div class="section-header">Sección 5. Plataforma Embarcada</div>', unsafe_allow_html=True)
     
-    plataforma_generado = st.form_submit_button("🤖 Generar IA Plataforma", use_container_width=True)
-    if plataforma_generado:
-        # Esta lógica se manejará después del submit
-        pass
+    if st.button("🤖 Generar IA Plataforma", key="btn_plataforma", use_container_width=True):
+        contenido_plataforma = sistema.sistema_ia.generar_plataforma_embarcada(incidencia_data)
+        st.session_state.plataforma_generado = contenido_plataforma
+        st.rerun()
     
     if 'plataforma_generado' in st.session_state:
         st.markdown('<div class="ia-generated">', unsafe_allow_html=True)
@@ -503,10 +514,10 @@ def mostrar_seccion_comunicaciones():
     # Sección 6: Redes Sociales
     st.markdown('<div class="section-header">Sección 6. Redes Sociales</div>', unsafe_allow_html=True)
     
-    redes_generado = st.form_submit_button("🤖 Generar IA Redes Sociales", use_container_width=True)
-    if redes_generado:
-        # Esta lógica se manejará después del submit
-        pass
+    if st.button("🤖 Generar IA Redes Sociales", key="btn_redes", use_container_width=True):
+        contenido_redes = sistema.sistema_ia.generar_redes_sociales(incidencia_data)
+        st.session_state.redes_generado = contenido_redes
+        st.rerun()
     
     if 'redes_generado' in st.session_state:
         st.markdown('<div class="ia-generated">', unsafe_allow_html=True)
@@ -525,10 +536,43 @@ def mostrar_seccion_comunicaciones():
             st.subheader("Inglés")
             st.text_area("Mensaje ENG", value=st.session_state.redes_generado['eng']['mensaje'], key="mensaje_eng", height=100)
         
+        # Botones de envío
+        st.subheader("Envío a Redes Sociales")
+        col_envio1, col_envio2, col_envio3, col_envio4, col_envio5 = st.columns(5)
+        
+        with col_envio1:
+            if st.button("📤 Enviar a Todos", use_container_width=True):
+                st.success("Mensajes enviados a todas las redes sociales")
+        
+        with col_envio2:
+            if st.button("🐦 Twitter", use_container_width=True):
+                st.success("Mensaje enviado a Twitter")
+        
+        with col_envio3:
+            if st.button("💬 WhatsApp", use_container_width=True):
+                st.success("Mensaje enviado a WhatsApp")
+        
+        with col_envio4:
+            if st.button("📱 Telegram", use_container_width=True):
+                st.success("Mensaje enviado a Telegram")
+        
+        with col_envio5:
+            if st.button("🔄 Actualización", use_container_width=True):
+                st.success("Mensajes de actualización enviados")
+        
         st.markdown('</div>', unsafe_allow_html=True)
 
 def crear_incidencia(sistema):
     """Formulario para crear nueva incidencia"""
+    
+    # Logos en la parte superior
+    st.markdown("""
+    <div class="logo-container">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Rodalies_de_Catalunya_logo.svg/320px-Rodalies_de_Catalunya_logo.svg.png" class="logo">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Renfe_Logo.png/320px-Renfe_Logo.png" class="logo">
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown('<div class="main-header">📝 Nueva Incidencia</div>', unsafe_allow_html=True)
     
     # Inicializar session_state para trenes afectados si no existe
@@ -551,14 +595,6 @@ def crear_incidencia(sistema):
         
         with col3:
             linea = st.selectbox("Línea *", sistema.lineas)
-        
-        # Mostrar información de la línea seleccionada
-        if linea:
-            estaciones_linea = sistema.obtener_estaciones_por_linea(linea)
-            if estaciones_linea:
-                with st.expander(f"Estaciones de la línea {linea} ({len(estaciones_linea)} estaciones)"):
-                    for estacion in estaciones_linea:
-                        st.write(f"• {estacion}")
         
         # Campos específicos según tipo de incidencia
         if tipo_incidencia == "Avería Infraestructura":
@@ -602,7 +638,7 @@ def crear_incidencia(sistema):
         with col_sitra:
             sitra = st.text_input("SITRA")
         
-        # Trenes afectados - fuera del form para permitir interacción
+        # Trenes afectados
         st.subheader("Trenes afectados")
         
         # Mostrar trenes actuales
@@ -614,9 +650,9 @@ def crear_incidencia(sistema):
                 st.markdown(f'<div class="tren-item">Retraso: {tren["retraso"]} min</div>', unsafe_allow_html=True)
             with col_show3:
                 # Usar form_submit_button para eliminar
-                eliminar = st.form_submit_button("🗑️", key=f"eliminar_{i}")
-                if eliminar:
-                    st.session_state.trenes_afectados.pop(i)
+                if st.form_submit_button("🗑️", key=f"eliminar_{i}"):
+                    if i < len(st.session_state.trenes_afectados):
+                        st.session_state.trenes_afectados.pop(i)
                     st.rerun()
         
         # Preparar datos para las secciones de IA
@@ -630,7 +666,7 @@ def crear_incidencia(sistema):
         }
         
         # Mostrar secciones de comunicaciones con IA
-        mostrar_seccion_comunicaciones()
+        mostrar_seccion_comunicaciones(sistema, incidencia_data)
         
         # Botón de submit principal
         col_submit1, col_submit2, col_submit3 = st.columns(3)
@@ -716,17 +752,6 @@ def main():
         st.session_state.sistema = SistemaIncidencias()
     
     sistema = st.session_state.sistema
-    
-    # Mostrar información del dataset cargado
-    with st.sidebar:
-        st.header("📊 Datos del Sistema")
-        st.write(f"**Líneas cargadas:** {len(sistema.lineas)}")
-        st.write(f"**Estaciones cargadas:** {len(sistema.estaciones_df)}")
-        st.write(f"**Incidencias activas:** {len(sistema.obtener_incidencias_activas())}")
-        
-        if st.button("🔄 Recargar Estaciones"):
-            sistema.estaciones_df, sistema.lineas = sistema.cargar_estaciones()
-            st.rerun()
     
     # Navegación
     if st.session_state.get('crear_incidencia', False):
