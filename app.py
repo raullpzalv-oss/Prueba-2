@@ -5,8 +5,6 @@ from datetime import datetime, date
 import json
 import uuid
 import random
-import io
-import base64
 
 # Configuración de la página
 st.set_page_config(
@@ -33,35 +31,12 @@ st.markdown("""
         padding-left: 10px;
         margin: 2rem 0 1rem 0;
     }
-    .incidencia-card {
-        border-radius: 10px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border: 1px solid #ddd;
-        background-color: white;
-    }
-    .impacto-bajo { background-color: #d4edda; }
-    .impacto-medio { background-color: #fff3cd; }
-    .impacto-alto { background-color: #f8d7da; }
-    .btn-primary {
-        background-color: #0055a4;
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 5px;
-        cursor: pointer;
-    }
     .ia-generated {
         border-left: 3px solid #28a745;
         padding-left: 10px;
         background-color: #f8fff9;
         margin: 10px 0;
         padding: 15px;
-    }
-    .station-line {
-        font-size: 0.8em;
-        color: #666;
-        margin-left: 5px;
     }
     .tren-item {
         background-color: #f8f9fa;
@@ -74,15 +49,9 @@ st.markdown("""
         display: flex;
         justify-content: center;
         align-items: center;
-        gap: 2rem;
-        margin-bottom: 2rem;
+        gap: 3rem;
+        margin: 2rem 0;
         padding: 1rem;
-        background-color: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .logo {
-        height: 60px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -246,8 +215,6 @@ class SistemaIncidencias:
             df = pd.read_csv('Estaciones Catalunya.csv', sep=';', encoding='utf-8')
             
             # Procesar el formato especial del archivo
-            # La primera fila contiene las líneas
-            # Las siguientes filas contienen las estaciones por línea
             lineas = df.columns.tolist()
             
             # Crear un DataFrame limpio de estaciones
@@ -258,15 +225,13 @@ class SistemaIncidencias:
                 estaciones_linea = df[linea].dropna().tolist()
                 
                 for estacion in estaciones_linea:
-                    if estacion and estacion.strip():  # Excluir valores vacíos
+                    if estacion and estacion.strip():
                         estaciones_data.append({
                             'estacion': estacion.strip(),
                             'linea': linea
                         })
             
             estaciones_df = pd.DataFrame(estaciones_data)
-            
-            # Ordenar por nombre de estación
             estaciones_df = estaciones_df.sort_values('estacion')
             
             return estaciones_df, lineas
@@ -278,8 +243,6 @@ class SistemaIncidencias:
                 {'estacion': 'Barcelona-Sants', 'linea': 'R1'},
                 {'estacion': 'Barcelona-Passeig de Gràcia', 'linea': 'R2'},
                 {'estacion': 'L’Hospitalet de Llobregat', 'linea': 'R1'},
-                {'estacion': 'Mataró', 'linea': 'R1'},
-                {'estacion': 'Granollers Centre', 'linea': 'R3'},
             ]
             estaciones_df = pd.DataFrame(estaciones_data)
             lineas = ['R1', 'R2', 'R3', 'R4']
@@ -322,14 +285,12 @@ class SistemaIncidencias:
 
 def mostrar_logos():
     """Mostrar los logos de Rodalies y Renfe"""
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("""
-        <div style="display: flex; justify-content: center; align-items: center; gap: 3rem; margin: 2rem 0;">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Rodalies_de_Catalunya_logo.svg/240px-Rodalies_de_Catalunya_logo.svg.png" style="height: 80px;">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Renfe_Logo.png/240px-Renfe_Logo.png" style="height: 80px;">
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown("""
+    <div class="logo-container">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Rodalies_de_Catalunya_logo.svg/240px-Rodalies_de_Catalunya_logo.svg.png" style="height: 80px;">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Renfe_Logo.png/240px-Renfe_Logo.png" style="height: 80px;">
+    </div>
+    """, unsafe_allow_html=True)
 
 def mostrar_dashboard(sistema):
     """Mostrar el dashboard principal con tabla de incidencias"""
@@ -379,45 +340,8 @@ def mostrar_dashboard(sistema):
         styled_df = df.style.map(color_por_repercusion, subset=['Repercusión'])
         st.dataframe(styled_df, use_container_width=True, height=400)
 
-def mostrar_detalles_incidencia(sistema, id_incidencia):
-    """Mostrar detalles de una incidencia específica"""
-    incidencia = next((inc for inc in sistema.incidencias if inc['id'] == id_incidencia), None)
-    
-    if not incidencia:
-        st.error("Incidencia no encontrada")
-        return
-    
-    with st.expander(f"Detalles de Incidencia {id_incidencia}", expanded=True):
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.write(f"**Tipo:** {incidencia['tipo']}")
-            st.write(f"**Fecha inicio:** {incidencia.get('fecha_inicio', '')}")
-            st.write(f"**Hora inicio:** {incidencia.get('hora_inicio', '')}")
-        
-        with col2:
-            st.write(f"**Repercusión:** {incidencia['repercusion']}")
-            st.write(f"**Línea:** {incidencia.get('linea', '')}")
-            st.write(f"**Estado:** {incidencia.get('estado', 'Activa')}")
-        
-        with col3:
-            if incidencia.get('estado') == 'Activa':
-                if st.button("🔒 Cerrar Incidencia", key=f"cerrar_{id_incidencia}"):
-                    sistema.cerrar_incidencia(id_incidencia)
-                    st.success("Incidencia cerrada correctamente")
-                    st.rerun()
-        
-        st.write(f"**Descripción:** {incidencia.get('descripcion', '')}")
-        st.write(f"**Previsión de resolución:** {incidencia.get('prevision', '')}")
-        
-        # Mostrar información específica según el tipo
-        if incidencia['tipo'] == 'Avería Infraestructura':
-            st.write(f"**Dependencia:** {incidencia.get('dependencia', '')}")
-        elif incidencia['tipo'] == 'Avería Tren':
-            st.write(f"**Nº Tren:** {incidencia.get('numero_tren', '')}")
-
-def mostrar_seccion_comunicaciones(sistema, incidencia_data):
-    """Mostrar las secciones de comunicaciones con IA funcional"""
+def procesar_botones_ia(sistema, incidencia_data):
+    """Procesar los botones de IA fuera del formulario"""
     
     # Sección 3: Copernico Incidencia
     st.markdown('<div class="section-header">Sección 3. Copernico Incidencia</div>', unsafe_allow_html=True)
@@ -427,14 +351,11 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
         num_ut = st.text_input("Nº UT afectada", key="num_ut")
     
     with col_btn_copernico:
-        copernico_clicked = st.button("🤖 Generar IA Copernico", key="btn_copernico", use_container_width=True)
+        if st.button("🤖 Generar IA Copernico", key="btn_copernico", use_container_width=True):
+            contenido = sistema.sistema_ia.generar_copernico(incidencia_data)
+            st.session_state.copernico_generado = contenido
+            st.rerun()
     
-    if copernico_clicked:
-        contenido_copernico = sistema.sistema_ia.generar_copernico(incidencia_data)
-        st.session_state.copernico_generado = contenido_copernico
-        st.rerun()
-    
-    # Mostrar campos de Copernico
     if 'copernico_generado' in st.session_state:
         st.markdown('<div class="ia-generated">', unsafe_allow_html=True)
         st.text_area("Descripción", 
@@ -451,17 +372,14 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
     # Sección 4: SIA Barcelona
     st.markdown('<div class="section-header">Sección 4. SIA Barcelona</div>', unsafe_allow_html=True)
     
-    sia_clicked = st.button("🤖 Generar IA SIA Barcelona", key="btn_sia", use_container_width=True)
-    
-    if sia_clicked:
-        contenido_sia = sistema.sistema_ia.generar_sia_barcelona(incidencia_data)
-        st.session_state.sia_generado = contenido_sia
+    if st.button("🤖 Generar IA SIA Barcelona", key="btn_sia", use_container_width=True):
+        contenido = sistema.sistema_ia.generar_sia_barcelona(incidencia_data)
+        st.session_state.sia_generado = contenido
         st.rerun()
     
     if 'sia_generado' in st.session_state:
         st.markdown('<div class="ia-generated">', unsafe_allow_html=True)
         
-        # Pestañas para diferentes idiomas
         tab1, tab2, tab3 = st.tabs(["CATALÁN", "CASTELLANO", "INGLÉS"])
         
         with tab1:
@@ -487,11 +405,9 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
     # Sección 5: Plataforma embarcada
     st.markdown('<div class="section-header">Sección 5. Plataforma Embarcada</div>', unsafe_allow_html=True)
     
-    plataforma_clicked = st.button("🤖 Generar IA Plataforma", key="btn_plataforma", use_container_width=True)
-    
-    if plataforma_clicked:
-        contenido_plataforma = sistema.sistema_ia.generar_plataforma_embarcada(incidencia_data)
-        st.session_state.plataforma_generado = contenido_plataforma
+    if st.button("🤖 Generar IA Plataforma", key="btn_plataforma", use_container_width=True):
+        contenido = sistema.sistema_ia.generar_plataforma_embarcada(incidencia_data)
+        st.session_state.plataforma_generado = contenido
         st.rerun()
     
     if 'plataforma_generado' in st.session_state:
@@ -525,11 +441,9 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
     # Sección 6: Redes Sociales
     st.markdown('<div class="section-header">Sección 6. Redes Sociales</div>', unsafe_allow_html=True)
     
-    redes_clicked = st.button("🤖 Generar IA Redes Sociales", key="btn_redes", use_container_width=True)
-    
-    if redes_clicked:
-        contenido_redes = sistema.sistema_ia.generar_redes_sociales(incidencia_data)
-        st.session_state.redes_generado = contenido_redes
+    if st.button("🤖 Generar IA Redes Sociales", key="btn_redes", use_container_width=True):
+        contenido = sistema.sistema_ia.generar_redes_sociales(incidencia_data)
+        st.session_state.redes_generado = contenido
         st.rerun()
     
     if 'redes_generado' in st.session_state:
@@ -587,7 +501,7 @@ def crear_incidencia(sistema):
     if 'trenes_afectados' not in st.session_state:
         st.session_state.trenes_afectados = []
     
-    # Formulario principal
+    # Formulario principal SOLO para los datos básicos
     with st.form("nueva_incidencia_form"):
         st.markdown('<div class="section-header">Sección 1. Incidencia</div>', unsafe_allow_html=True)
         
@@ -621,7 +535,6 @@ def crear_incidencia(sistema):
         # Afectación al territorio
         st.subheader("Afectación al territorio")
         
-        # Si hay una línea seleccionada, mostrar solo estaciones de esa línea
         if linea:
             estaciones_disponibles = sistema.obtener_estaciones_por_linea(linea)
         else:
@@ -657,84 +570,17 @@ def crear_incidencia(sistema):
             with col_show2:
                 st.markdown(f'<div class="tren-item">Retraso: {tren["retraso"]} min</div>', unsafe_allow_html=True)
             with col_show3:
-                # Botón para eliminar tren
                 if st.form_submit_button("🗑️", key=f"eliminar_{i}"):
                     if i < len(st.session_state.trenes_afectados):
                         st.session_state.trenes_afectados.pop(i)
                     st.rerun()
         
-        # Preparar datos para las secciones de IA
-        incidencia_data = {
-            'tipo': tipo_incidencia,
-            'repercusion': repercusion,
-            'linea': linea,
-            'estacion_a': estacion_a,
-            'estacion_b': estacion_b,
-            'descripcion': descripcion_larga
-        }
-        
-        # Mostrar secciones de comunicaciones con IA (FUERA del form)
-        st.markdown("</form>", unsafe_allow_html=True)
-        mostrar_seccion_comunicaciones(sistema, incidencia_data)
-        st.markdown('<form>', unsafe_allow_html=True)
-        
         # Botón de submit principal
         col_submit1, col_submit2, col_submit3 = st.columns(3)
         with col_submit2:
             submitted = st.form_submit_button("💾 Guardar Incidencia", use_container_width=True)
-        
-        # Procesar después del submit
-        if submitted:
-            if not descripcion_larga or not prevision_resolucion:
-                st.error("Por favor, complete todos los campos obligatorios (*)")
-            else:
-                # Crear objeto incidencia
-                nueva_incidencia = {
-                    'tipo': tipo_incidencia,
-                    'fecha_inicio': fecha_inicio.strftime("%Y-%m-%d"),
-                    'hora_inicio': hora_inicio.strftime("%H:%M"),
-                    'repercusion': repercusion,
-                    'linea': linea,
-                    'estacion_a': estacion_a,
-                    'estacion_b': estacion_b,
-                    'descripcion': descripcion_larga,
-                    'prevision': prevision_resolucion,
-                    'estado': 'Activa',
-                    'gifo': gifo_seleccionados,
-                    'sitra': sitra,
-                    'trenes_afectados': st.session_state.trenes_afectados.copy()
-                }
-                
-                # Agregar campos específicos según tipo
-                if tipo_incidencia == "Avería Infraestructura":
-                    nueva_incidencia['dependencia'] = dependencia
-                elif tipo_incidencia == "Avería Tren":
-                    nueva_incidencia['numero_tren'] = numero_tren
-                elif tipo_incidencia in ["Orden público/Fuerza mayor", "Operaciones"]:
-                    if numero_tren_opcional:
-                        nueva_incidencia['numero_tren'] = numero_tren_opcional
-                    if dependencia_opcional:
-                        nueva_incidencia['dependencia'] = dependencia_opcional
-                
-                # Guardar incidencia
-                id_incidencia = sistema.agregar_incidencia(nueva_incidencia)
-                st.success(f"✅ Incidencia {id_incidencia} creada correctamente")
-                
-                # Limpiar formulario y estados de IA
-                st.session_state.trenes_afectados = []
-                if 'copernico_generado' in st.session_state:
-                    del st.session_state.copernico_generado
-                if 'sia_generado' in st.session_state:
-                    del st.session_state.sia_generado
-                if 'plataforma_generado' in st.session_state:
-                    del st.session_state.plataforma_generado
-                if 'redes_generado' in st.session_state:
-                    del st.session_state.redes_generado
-                
-                st.session_state.crear_incidencia = False
-                st.rerun()
     
-    # Formulario separado para añadir trenes (fuera del form principal)
+    # Formulario separado para añadir trenes
     st.markdown("---")
     st.subheader("Añadir Tren Afectado")
     
@@ -753,6 +599,70 @@ def crear_incidencia(sistema):
                 'retraso': nuevo_retraso
             })
             st.rerun()
+    
+    # Preparar datos para las secciones de IA
+    incidencia_data = {
+        'tipo': tipo_incidencia,
+        'repercusion': repercusion,
+        'linea': linea,
+        'estacion_a': estacion_a,
+        'estacion_b': estacion_b,
+        'descripcion': descripcion_larga
+    }
+    
+    # Mostrar secciones de comunicaciones con IA (FUERA de cualquier formulario)
+    procesar_botones_ia(sistema, incidencia_data)
+    
+    # Procesar el guardado de la incidencia
+    if 'submitted' in locals() and submitted:
+        if not descripcion_larga or not prevision_resolucion:
+            st.error("Por favor, complete todos los campos obligatorios (*)")
+        else:
+            # Crear objeto incidencia
+            nueva_incidencia = {
+                'tipo': tipo_incidencia,
+                'fecha_inicio': fecha_inicio.strftime("%Y-%m-%d"),
+                'hora_inicio': hora_inicio.strftime("%H:%M"),
+                'repercusion': repercusion,
+                'linea': linea,
+                'estacion_a': estacion_a,
+                'estacion_b': estacion_b,
+                'descripcion': descripcion_larga,
+                'prevision': prevision_resolucion,
+                'estado': 'Activa',
+                'gifo': gifo_seleccionados,
+                'sitra': sitra,
+                'trenes_afectados': st.session_state.trenes_afectados.copy()
+            }
+            
+            # Agregar campos específicos según tipo
+            if tipo_incidencia == "Avería Infraestructura":
+                nueva_incidencia['dependencia'] = dependencia
+            elif tipo_incidencia == "Avería Tren":
+                nueva_incidencia['numero_tren'] = numero_tren
+            elif tipo_incidencia in ["Orden público/Fuerza mayor", "Operaciones"]:
+                if numero_tren_opcional:
+                    nueva_incidencia['numero_tren'] = numero_tren_opcional
+                if dependencia_opcional:
+                    nueva_incidencia['dependencia'] = dependencia_opcional
+            
+            # Guardar incidencia
+            id_incidencia = sistema.agregar_incidencia(nueva_incidencia)
+            st.success(f"✅ Incidencia {id_incidencia} creada correctamente")
+            
+            # Limpiar formulario y estados de IA
+            st.session_state.trenes_afectados = []
+            for key in ['copernico_generado', 'sia_generado', 'plataforma_generado', 'redes_generado']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            
+            st.session_state.crear_incidencia = False
+            st.rerun()
+    
+    # Botón para volver al dashboard
+    if st.button("← Volver al Dashboard"):
+        st.session_state.crear_incidencia = False
+        st.rerun()
 
 def main():
     """Función principal de la aplicación"""
@@ -766,11 +676,6 @@ def main():
     # Navegación
     if st.session_state.get('crear_incidencia', False):
         crear_incidencia(sistema)
-        
-        # Botón para volver al dashboard
-        if st.button("← Volver al Dashboard"):
-            st.session_state.crear_incidencia = False
-            st.rerun()
     else:
         mostrar_dashboard(sistema)
 
