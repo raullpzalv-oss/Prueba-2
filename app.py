@@ -6,6 +6,7 @@ import json
 import uuid
 import random
 import io
+import base64
 
 # Configuración de la página
 st.set_page_config(
@@ -75,9 +76,13 @@ st.markdown("""
         align-items: center;
         gap: 2rem;
         margin-bottom: 2rem;
+        padding: 1rem;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .logo {
-        height: 80px;
+        height: 60px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -315,16 +320,22 @@ class SistemaIncidencias:
         """Obtener incidencias activas"""
         return [inc for inc in self.incidencias if inc.get('estado') != 'Cerrada']
 
+def mostrar_logos():
+    """Mostrar los logos de Rodalies y Renfe"""
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("""
+        <div style="display: flex; justify-content: center; align-items: center; gap: 3rem; margin: 2rem 0;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Rodalies_de_Catalunya_logo.svg/240px-Rodalies_de_Catalunya_logo.svg.png" style="height: 80px;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Renfe_Logo.png/240px-Renfe_Logo.png" style="height: 80px;">
+        </div>
+        """, unsafe_allow_html=True)
+
 def mostrar_dashboard(sistema):
     """Mostrar el dashboard principal con tabla de incidencias"""
     
     # Logos en la parte superior
-    st.markdown("""
-    <div class="logo-container">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Rodalies_de_Catalunya_logo.svg/320px-Rodalies_de_Catalunya_logo.svg.png" class="logo">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Renfe_Logo.png/320px-Renfe_Logo.png" class="logo">
-    </div>
-    """, unsafe_allow_html=True)
+    mostrar_logos()
     
     st.markdown('<div class="main-header">Gestión de Incidencias - Rodalies Catalunya</div>', unsafe_allow_html=True)
     
@@ -416,35 +427,33 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
         num_ut = st.text_input("Nº UT afectada", key="num_ut")
     
     with col_btn_copernico:
-        if st.button("🤖 Generar IA Copernico", key="btn_copernico", use_container_width=True):
-            contenido_copernico = sistema.sistema_ia.generar_copernico(incidencia_data)
-            st.session_state.copernico_generado = contenido_copernico
-            st.rerun()
+        copernico_clicked = st.button("🤖 Generar IA Copernico", key="btn_copernico", use_container_width=True)
+    
+    if copernico_clicked:
+        contenido_copernico = sistema.sistema_ia.generar_copernico(incidencia_data)
+        st.session_state.copernico_generado = contenido_copernico
+        st.rerun()
     
     # Mostrar campos de Copernico
     if 'copernico_generado' in st.session_state:
         st.markdown('<div class="ia-generated">', unsafe_allow_html=True)
-        descripcion_copernico = st.text_area(
-            "Descripción", 
-            value=st.session_state.copernico_generado['descripcion'],
-            key="descripcion_copernico"
-        )
-        consecuencias_copernico = st.text_area(
-            "Consecuencias", 
-            value=st.session_state.copernico_generado['consecuencias'],
-            key="consecuencias_copernico"
-        )
-        accion_comercial_copernico = st.text_area(
-            "Acción comercial", 
-            value=st.session_state.copernico_generado['accion_comercial'],
-            key="accion_comercial_copernico"
-        )
+        st.text_area("Descripción", 
+                    value=st.session_state.copernico_generado['descripcion'],
+                    key="descripcion_copernico")
+        st.text_area("Consecuencias", 
+                    value=st.session_state.copernico_generado['consecuencias'],
+                    key="consecuencias_copernico")
+        st.text_area("Acción comercial", 
+                    value=st.session_state.copernico_generado['accion_comercial'],
+                    key="accion_comercial_copernico")
         st.markdown('</div>', unsafe_allow_html=True)
     
     # Sección 4: SIA Barcelona
     st.markdown('<div class="section-header">Sección 4. SIA Barcelona</div>', unsafe_allow_html=True)
     
-    if st.button("🤖 Generar IA SIA Barcelona", key="btn_sia", use_container_width=True):
+    sia_clicked = st.button("🤖 Generar IA SIA Barcelona", key="btn_sia", use_container_width=True)
+    
+    if sia_clicked:
         contenido_sia = sistema.sistema_ia.generar_sia_barcelona(incidencia_data)
         st.session_state.sia_generado = contenido_sia
         st.rerun()
@@ -478,7 +487,9 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
     # Sección 5: Plataforma embarcada
     st.markdown('<div class="section-header">Sección 5. Plataforma Embarcada</div>', unsafe_allow_html=True)
     
-    if st.button("🤖 Generar IA Plataforma", key="btn_plataforma", use_container_width=True):
+    plataforma_clicked = st.button("🤖 Generar IA Plataforma", key="btn_plataforma", use_container_width=True)
+    
+    if plataforma_clicked:
         contenido_plataforma = sistema.sistema_ia.generar_plataforma_embarcada(incidencia_data)
         st.session_state.plataforma_generado = contenido_plataforma
         st.rerun()
@@ -514,7 +525,9 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
     # Sección 6: Redes Sociales
     st.markdown('<div class="section-header">Sección 6. Redes Sociales</div>', unsafe_allow_html=True)
     
-    if st.button("🤖 Generar IA Redes Sociales", key="btn_redes", use_container_width=True):
+    redes_clicked = st.button("🤖 Generar IA Redes Sociales", key="btn_redes", use_container_width=True)
+    
+    if redes_clicked:
         contenido_redes = sistema.sistema_ia.generar_redes_sociales(incidencia_data)
         st.session_state.redes_generado = contenido_redes
         st.rerun()
@@ -541,23 +554,23 @@ def mostrar_seccion_comunicaciones(sistema, incidencia_data):
         col_envio1, col_envio2, col_envio3, col_envio4, col_envio5 = st.columns(5)
         
         with col_envio1:
-            if st.button("📤 Enviar a Todos", use_container_width=True):
+            if st.button("📤 Enviar a Todos", key="btn_todos", use_container_width=True):
                 st.success("Mensajes enviados a todas las redes sociales")
         
         with col_envio2:
-            if st.button("🐦 Twitter", use_container_width=True):
+            if st.button("🐦 Twitter", key="btn_twitter", use_container_width=True):
                 st.success("Mensaje enviado a Twitter")
         
         with col_envio3:
-            if st.button("💬 WhatsApp", use_container_width=True):
+            if st.button("💬 WhatsApp", key="btn_whatsapp", use_container_width=True):
                 st.success("Mensaje enviado a WhatsApp")
         
         with col_envio4:
-            if st.button("📱 Telegram", use_container_width=True):
+            if st.button("📱 Telegram", key="btn_telegram", use_container_width=True):
                 st.success("Mensaje enviado a Telegram")
         
         with col_envio5:
-            if st.button("🔄 Actualización", use_container_width=True):
+            if st.button("🔄 Actualización", key="btn_actualizacion", use_container_width=True):
                 st.success("Mensajes de actualización enviados")
         
         st.markdown('</div>', unsafe_allow_html=True)
@@ -566,12 +579,7 @@ def crear_incidencia(sistema):
     """Formulario para crear nueva incidencia"""
     
     # Logos en la parte superior
-    st.markdown("""
-    <div class="logo-container">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Rodalies_de_Catalunya_logo.svg/320px-Rodalies_de_Catalunya_logo.svg.png" class="logo">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Renfe_Logo.png/320px-Renfe_Logo.png" class="logo">
-    </div>
-    """, unsafe_allow_html=True)
+    mostrar_logos()
     
     st.markdown('<div class="main-header">📝 Nueva Incidencia</div>', unsafe_allow_html=True)
     
@@ -649,7 +657,7 @@ def crear_incidencia(sistema):
             with col_show2:
                 st.markdown(f'<div class="tren-item">Retraso: {tren["retraso"]} min</div>', unsafe_allow_html=True)
             with col_show3:
-                # Usar form_submit_button para eliminar
+                # Botón para eliminar tren
                 if st.form_submit_button("🗑️", key=f"eliminar_{i}"):
                     if i < len(st.session_state.trenes_afectados):
                         st.session_state.trenes_afectados.pop(i)
@@ -665,8 +673,10 @@ def crear_incidencia(sistema):
             'descripcion': descripcion_larga
         }
         
-        # Mostrar secciones de comunicaciones con IA
+        # Mostrar secciones de comunicaciones con IA (FUERA del form)
+        st.markdown("</form>", unsafe_allow_html=True)
         mostrar_seccion_comunicaciones(sistema, incidencia_data)
+        st.markdown('<form>', unsafe_allow_html=True)
         
         # Botón de submit principal
         col_submit1, col_submit2, col_submit3 = st.columns(3)
